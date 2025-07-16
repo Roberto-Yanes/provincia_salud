@@ -3,18 +3,45 @@ import Header from "@/components/header"
 import VoiceInputDisplay from "@/components/voice-input-display"
 import Link from "next/link"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+
+// Permite que otros módulos (como el hook de voz) disparen el click en el botón de turnos
+if (typeof window !== 'undefined') {
+  (window as any).clickTurnosOnline = () => {
+    const btn = document.getElementById("turnos-btn") as HTMLButtonElement | null;
+    if (btn) btn.click();
+  }
+}
 
 export default function Home() {
   const [focusedService, setFocusedService] = useState<string | null>(null)
+  // Flag para saber si el foco fue activado por comando de voz
+  const [shouldClickTurnos, setShouldClickTurnos] = useState(false)
 
-  const handleServiceFocus = (id: string) => {
+  // Cuando el comando de voz activa el foco, también pide el click
+  const handleServiceFocus = (id: string, byVoice = false, doClick = false) => {
     setFocusedService(id)
+    if (id === 'turnos' && (byVoice || doClick)) {
+      setShouldClickTurnos(true)
+    }
   }
 
   const handleServiceBlur = () => {
     setFocusedService(null)
+    setShouldClickTurnos(false)
   }
+
+  // Permite que el comando "ver turnos" haga click en el botón SOLO si fue por comando de voz
+  useEffect(() => {
+    if (focusedService === "turnos" && shouldClickTurnos) {
+      const btn = document.getElementById("turnos-btn") as HTMLButtonElement | null;
+      if (btn) {
+        btn.focus();
+        btn.click();
+        setShouldClickTurnos(false)
+      }
+    }
+  }, [focusedService, shouldClickTurnos]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
@@ -42,12 +69,39 @@ export default function Home() {
             <h2 className="text-3xl md:text-4xl font-bold text-primary mb-8 text-center">Nuestros Servicios</h2>
 
             <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 list-none">
-              {[
-                [
-                  "Turnos Online",
-                  "Solicita y gestiona tus turnos médicos de manera rápida y sencilla desde cualquier lugar.",
-                  "turnos"
-                ],
+              {/* Primer item como botón dentro de <li> */}
+              <li
+                id="turnos"
+                className={`bg-gray-50 p-0 rounded-lg shadow-md border transition-all duration-200
+                  ${focusedService === 'turnos'
+                    ? 'border-4 border-primary bg-blue-50 ring-4 ring-primary/30'
+                    : 'border-gray-200 hover:shadow-lg'}
+                `}
+                aria-label="Servicio: Turnos Online"
+                style={{display: 'flex', alignItems: 'stretch'}}
+              >
+                <button
+                  type="button"
+                  tabIndex={0}
+                  className="w-full h-full text-left bg-transparent border-0 p-6 focus:outline-none"
+                  onFocus={() => handleServiceFocus('turnos')}
+                  onBlur={handleServiceBlur}
+                  onMouseDown={() => handleServiceFocus('turnos')}
+                  onMouseUp={handleServiceBlur}
+                  onClick={e => {
+                    // Evitar loop: solo mostrar alert si no fue auto-click por comando de voz
+                    if (!shouldClickTurnos) {
+                      alert('¡Hiciste click en Turnos Online!')
+                    }
+                  }}
+                  id="turnos-btn"
+                >
+                  <h3 className="text-xl font-semibold text-primary mb-3">Turnos Online</h3>
+                  <p className="text-gray-700">Solicita y gestiona tus turnos médicos de manera rápida y sencilla desde cualquier lugar.</p>
+                </button>
+              </li>
+              {/* Resto de los items como antes */}
+              {[ 
                 [
                   "Historial Clínico",
                   "Accede a tu historial médico completo, resultados de estudios y recetas en un solo lugar.",

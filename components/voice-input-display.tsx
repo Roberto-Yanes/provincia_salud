@@ -84,6 +84,16 @@ export default function VoiceInputDisplay() {
     }
     setTranscriptions(prev => [...prev.slice(-20), userEntry]) // Limitar historial
 
+    // --- Click directo si el comando es "click en turnos online" o similar ---
+    if (typeof window !== 'undefined') {
+      const cmd = command.trim().toLowerCase()
+      if (cmd === 'click en turnos online' || cmd === 'clic en turnos online' || cmd === 'haz click en turnos online' || cmd === 'haz clic en turnos online') {
+        if (typeof (window as any).clickTurnosOnline === 'function') {
+          (window as any).clickTurnosOnline()
+        }
+      }
+    }
+
     try {
       const result = await executeVoiceCommand(command)
 
