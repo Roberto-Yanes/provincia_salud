@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Mic, MicOff, X, Volume2 } from "lucide-react"
 import { useVoiceRecognition } from "@/hooks/use-voice-recognition"
 import { useVoiceCommands } from "@/hooks/use-voice-commands"
+import { speak } from "@/lib/speech"
 import ClientOnly from "@/components/client-only"
 
 interface TranscriptionEntry {
@@ -19,6 +20,7 @@ export default function VoiceInputDisplay() {
   const [transcriptions, setTranscriptions] = useState<TranscriptionEntry[]>([])
   const [open, setOpen] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [autoHidden, setAutoHidden] = useState(false)
   
   const {
     isListening,
@@ -33,6 +35,29 @@ export default function VoiceInputDisplay() {
   
   const { executeVoiceCommand, announceToScreenReader } = useVoiceCommands()
 
+
+
+  // Activar escucha automáticamente al montar el componente si es soportado
+  useEffect(() => {
+    if (isSupported && !isListening) {
+      startListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSupported]);
+
+  // Ocultar el panel cuando la escucha está activa y mostrarlo si se detiene por causas externas
+  useEffect(() => {
+    if (isListening && !isProcessing && open) {
+      setAutoHidden(true);
+      setOpen(false);
+    }
+    // Si la escucha se detiene y no es por procesamiento, mostrar el panel
+    if (!isListening && autoHidden && !isProcessing) {
+      setOpen(true);
+      setAutoHidden(false);
+    }
+  }, [isListening, isProcessing, open, autoHidden]);
+
   // Process transcript when it's complete
   useEffect(() => {
     if (transcript && !isListening && confidence > 0.3) { // Umbral más bajo para mejor respuesta
@@ -46,19 +71,22 @@ export default function VoiceInputDisplay() {
 
   const processVoiceCommand = async (command: string) => {
     if (isProcessing) return
-    
+
     setIsProcessing(true)
-    
+
+    // Pausar escucha mientras se procesa
+    if (isListening) stopListening()
+
     // Add user command to transcriptions
     const userEntry: TranscriptionEntry = {
       text: `Usuario: "${command}"`,
       timestamp: new Date()
     }
     setTranscriptions(prev => [...prev.slice(-20), userEntry]) // Limitar historial
-    
+
     try {
       const result = await executeVoiceCommand(command)
-      
+
       // Add system response to transcriptions
       const systemEntry: TranscriptionEntry = {
         text: `Sistema: ${result.message}`,
@@ -67,10 +95,24 @@ export default function VoiceInputDisplay() {
         success: result.success
       }
       setTranscriptions(prev => [...prev.slice(-20), systemEntry])
-      
+
       // Announce to screen reader
       announceToScreenReader(result.message)
-      
+
+      // Leer en voz alta la respuesta del sistema y reanudar escucha al finalizar
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utterance = new window.SpeechSynthesisUtterance(result.message)
+        utterance.lang = 'es-ES'
+        utterance.onend = () => {
+          // Reanudar escucha después de hablar
+          if (isSupported) startListening()
+        }
+        window.speechSynthesis.speak(utterance)
+      } else {
+        // Si no hay síntesis, reanudar igual
+        if (isSupported) startListening()
+      }
+
     } catch (error) {
       console.error('Error processing voice command:', error)
       const errorEntry: TranscriptionEntry = {
@@ -79,6 +121,8 @@ export default function VoiceInputDisplay() {
         success: false
       }
       setTranscriptions(prev => [...prev.slice(-20), errorEntry])
+      // Reanudar escucha en caso de error
+      if (isSupported) startListening()
     } finally {
       setIsProcessing(false)
       resetTranscript()
@@ -88,6 +132,7 @@ export default function VoiceInputDisplay() {
   const handleVoiceToggle = () => {
     if (isListening) {
       stopListening()
+      setAutoHidden(false)
     } else {
       startListening()
     }
@@ -107,20 +152,17 @@ export default function VoiceInputDisplay() {
       {!isSupported ? (
         <Card className="fixed bottom-4 right-4 w-80 shadow-lg z-50 bg-white border border-gray-200">
           <CardContent className="p-4">
-            <p className="text-sm text-red-600">
-              Tu navegador no soporta reconocimiento de voz.
+            <p className="text-sm text-red-600 font-semibold mb-2">
+              Tu navegador no soporta reconocimiento de voz o el acceso al micrófono fue denegado.
             </p>
+            <ul className="text-xs text-gray-700 list-disc pl-4">
+              <li>Verifica que tu navegador sea compatible (Chrome recomendado).</li>
+              <li>Permite el acceso al micrófono cuando el navegador lo solicite.</li>
+              <li>Si el problema persiste, prueba recargando la página o revisa la configuración de privacidad.</li>
+            </ul>
           </CardContent>
         </Card>
-      ) : !open ? (
-        <Button
-          onClick={toggleOpen}
-          className="fixed bottom-4 right-4 p-3 rounded-full shadow-lg bg-primary text-white hover:bg-primary/90"
-          aria-label="Abrir panel de transcripción de voz"
-        >
-          <Mic className="h-6 w-6" />
-        </Button>
-      ) : (
+      ) : !open ? null : (
         <Card className="fixed bottom-4 right-4 w-80 shadow-lg z-50 bg-white border border-gray-200">
           <CardHeader className="flex items-center justify-between p-4 pb-2">
             <CardTitle className="text-lg font-semibold flex items-center gap-2">

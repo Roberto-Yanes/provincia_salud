@@ -1,8 +1,21 @@
+"use client"
 import Header from "@/components/header"
 import VoiceInputDisplay from "@/components/voice-input-display"
 import Link from "next/link"
 
+import { useState } from "react"
+
 export default function Home() {
+  const [focusedService, setFocusedService] = useState<string | null>(null)
+
+  const handleServiceFocus = (id: string) => {
+    setFocusedService(id)
+  }
+
+  const handleServiceBlur = () => {
+    setFocusedService(null)
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
       <Header />
@@ -61,11 +74,20 @@ export default function Home() {
                   "soporte"
                 ],
               ].map(([title, desc, id]) => (
-                <li 
-                  key={title} 
+                <li
+                  key={title}
                   id={id}
-                  className="bg-gray-50 p-6 rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow"
+                  tabIndex={0}
+                  className={`bg-gray-50 p-6 rounded-lg shadow-md border transition-all duration-200
+                    ${focusedService === id
+                      ? 'border-4 border-primary bg-blue-50 ring-4 ring-primary/30'
+                      : 'border-gray-200 hover:shadow-lg'}
+                  `}
                   aria-label={`Servicio: ${title}`}
+                  onFocus={() => handleServiceFocus(id as string)}
+                  onBlur={handleServiceBlur}
+                  onMouseDown={() => handleServiceFocus(id as string)}
+                  onMouseUp={handleServiceBlur}
                 >
                   <h3 className="text-xl font-semibold text-primary mb-3">{title}</h3>
                   <p className="text-gray-700">{desc}</p>
