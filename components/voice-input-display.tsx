@@ -111,15 +111,15 @@ export default function VoiceInputDisplay() {
 
       // Leer en voz alta la respuesta del sistema y reanudar escucha al finalizar
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        const utterance = new window.SpeechSynthesisUtterance(result.message)
-        utterance.lang = 'es-ES'
-        utterance.onend = () => {
-          // Reanudar escucha después de hablar
+        const onEnd = () => {
           if (isSupported) startListening()
         }
+        // Usar la utilidad speak y setear onend
+        const utterance = new window.SpeechSynthesisUtterance(result.message)
+        utterance.lang = 'es-ES'
+        utterance.onend = onEnd
         window.speechSynthesis.speak(utterance)
       } else {
-        // Si no hay síntesis, reanudar igual
         if (isSupported) startListening()
       }
 
